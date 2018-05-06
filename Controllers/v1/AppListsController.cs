@@ -37,7 +37,7 @@ namespace AppListWebAPI.Controllers.v1
         }
 
         [HttpPost("{platform}/{deviceId}/{uniqueId}")]
-        public object GetAppList(int platform, string deviceId, string uniqueId, string channel, string bundleId, string urlSchemes)
+        public object GetAppList(int platform, string deviceId, string uniqueId, string channel, string bundleId, string urlSchemes = "")
         {
             if (!IsValidSignature(platform, deviceId, uniqueId))
             {
