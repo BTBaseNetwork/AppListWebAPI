@@ -27,8 +27,11 @@ namespace AppListWebAPI.Controllers.v1
             {
                 var signature = Request.Headers["signature"];
                 var signcodeKey = Request.Headers["signcode"];
-                var signcode = Startup.APISigncodesDict[signcodeKey];
-                return SignatureUtil.TestStringParametersSignature(signature, signcode, platform.ToString(), deviceId, uniqueId);
+                if (Startup.APISigncodesDict.ContainsKey(signcodeKey))
+                {
+                    var signcode = Startup.APISigncodesDict[signcodeKey];
+                    return SignatureUtil.TestStringParametersSignature(signature, signcode, platform.ToString(), deviceId, uniqueId);
+                }
             }
             return false;
         }
