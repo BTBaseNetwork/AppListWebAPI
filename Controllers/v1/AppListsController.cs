@@ -37,8 +37,18 @@ namespace AppListWebAPI.Controllers.v1
         }
 
         [HttpPost("{platform}/{deviceId}/{uniqueId}")]
-        public object GetAppList(int platform, string deviceId, string uniqueId, string channel, string bundleId, string urlSchemes = "")
+        public object GetAppList(int platform, string deviceId, string uniqueId, string channel = "", string bundleId = "", string urlSchemes = "")
         {
+            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(uniqueId))
+            {
+                Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
+                return new ApiResult
+                {
+                    code = Response.StatusCode,
+                    msg = "Invalid Parameters"
+                };
+            }
+
             if (!IsValidSignature(platform, deviceId, uniqueId))
             {
                 Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
@@ -47,6 +57,11 @@ namespace AppListWebAPI.Controllers.v1
                     code = Response.StatusCode,
                     msg = "Invalid Signature"
                 };
+            }
+
+            if (string.IsNullOrEmpty(channel))
+            {
+                channel = BTAppLaunchRecord.CHANNEL_UNKNOW;
             }
 
             var a = from u in DBContext.BTAppLaunchRecord where u.DeviceId == deviceId && u.Platform == platform && u.UniqueId == uniqueId select u;

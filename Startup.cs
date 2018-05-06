@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace AppListWebAPI
 {
@@ -24,7 +25,12 @@ namespace AppListWebAPI
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddMvc();
+            services.AddMvc().AddJsonOptions(op =>
+            {
+                op.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
+                op.SerializerSettings.Formatting = Formatting.None;
+            });
+
             services.AddDbContextPool<DAL.BTBaseDbContext>(ac =>
             {
                 ac.UseMySQL(Environment.GetEnvironmentVariable("MYSQL_CONSTR"));
