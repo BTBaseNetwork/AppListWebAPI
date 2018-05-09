@@ -8,10 +8,7 @@ namespace AppListWebAPI.DAL
     {
         public virtual DbSet<BTAppLaunchRecord> BTAppLaunchRecord { get; set; }
 
-        public BTBaseDbContext(DbContextOptions<BTBaseDbContext> options) : base(options)
-        {
-            Database.EnsureCreated();
-        }
+        public BTBaseDbContext(DbContextOptions<BTBaseDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
