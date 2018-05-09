@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Logging.Console;
 
 namespace AppListWebAPI
 {
@@ -25,6 +26,11 @@ namespace AppListWebAPI
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddLogging(ac =>
+            {
+                ac.AddConsole();
+            });
+            
             services.AddMvc().AddJsonOptions(op =>
             {
                 op.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
@@ -47,12 +53,24 @@ namespace AppListWebAPI
 
             app.UseMvc();
             LoadAPISignCodes();
-            ConnectDB();
+            ConnectDB(app);
         }
 
-        private void ConnectDB()
+        private void ConnectDB(IApplicationBuilder app)
         {
-
+            using (var sc = app.ApplicationServices.CreateScope())
+            {
+                try
+                {
+                    var dbContext = sc.ServiceProvider.GetService<DAL.BTBaseDbContext>();
+                    dbContext.Database.EnsureCreated();
+                    Console.WriteLine("Connect DB Success");
+                }
+                catch (System.Exception ex)
+                {
+                    Console.WriteLine("Connect DB Error:" + ex.ToString());
+                }
+            }
         }
 
         public static Dictionary<string, string> APISigncodesDict { get; private set; }

@@ -6,6 +6,7 @@ using AppListWebAPI.DAL;
 using AppListWebAPI.Models;
 using BahamutCommon.Utils;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace AppListWebAPI.Controllers.v1
 {
@@ -39,6 +40,8 @@ namespace AppListWebAPI.Controllers.v1
         [HttpPost("{platform}/{deviceId}/{uniqueId}")]
         public object GetAppList(int platform, string deviceId, string uniqueId, string channel = "", string bundleId = "", string urlSchemes = "")
         {
+            Console.WriteLine("platform:{0},deviceId:{1},uniqueId:{2},channel:{3},bundleId:{4},urlSchemes:{5}", platform, deviceId, uniqueId, channel, bundleId, urlSchemes);
+            Console.WriteLine("signcodekey:{0},signature:{1}", Request.Headers?["signature"], Request.Headers?["signcode"]);
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(uniqueId))
             {
                 Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
