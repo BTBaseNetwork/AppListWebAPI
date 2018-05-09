@@ -22,7 +22,7 @@ namespace AppListWebAPI.Controllers.v1
             _context = context;
         }
 
-        bool IsValidSignature(int platform, string deviceId, string uniqueId)
+        bool IsValidSignature(int platform, string deviceId, string uniqueId, long ts)
         {
             if (Request.Headers.ContainsKey("signature") && Request.Headers.ContainsKey("signcode"))
             {
@@ -31,14 +31,14 @@ namespace AppListWebAPI.Controllers.v1
                 if (Startup.APISigncodesDict.ContainsKey(signcodeKey))
                 {
                     var signcode = Startup.APISigncodesDict[signcodeKey];
-                    return SignatureUtil.TestStringParametersSignature(signature, signcode, platform.ToString(), deviceId, uniqueId);
+                    return SignatureUtil.TestStringParametersSignature(signature, signcode, platform.ToString(), deviceId, uniqueId, ts.ToString());
                 }
             }
             return false;
         }
 
-        [HttpPost("{platform}/{deviceId}/{uniqueId}")]
-        public object GetAppList(int platform, string deviceId, string uniqueId, string channel = "", string bundleId = "", string urlSchemes = "")
+        [HttpPost("{platform}/{deviceId}/{uniqueId}/{ts}")]
+        public object GetAppList(int platform, string deviceId, string uniqueId, long ts, string channel = "", string bundleId = "", string urlSchemes = "")
         {
             if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(uniqueId))
             {
@@ -50,7 +50,7 @@ namespace AppListWebAPI.Controllers.v1
                 };
             }
 
-            if (!IsValidSignature(platform, deviceId, uniqueId))
+            if (!IsValidSignature(platform, deviceId, uniqueId, ts))
             {
                 Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
                 return new ApiResult
