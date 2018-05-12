@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using AppListWebAPI.DAL;
 using AppListWebAPI.Models;
@@ -22,97 +23,126 @@ namespace AppListWebAPI.Controllers.v1
             _context = context;
         }
 
-        bool IsValidSignature(int platform, string deviceId, string uniqueId, long ts)
+        class AppListRequestModel
         {
-            if (Request.Headers.ContainsKey("signature") && Request.Headers.ContainsKey("signcode"))
+            public int platform { get; set; }
+            public string deviceId { get; set; }
+            public string uniqueId { get; set; }
+            public long ts { get; set; }
+            public string channel { get; set; }
+            public string bundleId { get; set; }
+            public string urlSchemes { get; set; }
+            public string aesKey { get; set; }
+            public string signature { get; set; }
+            public bool TestSignature()
             {
-                var signature = Request.Headers["signature"];
-                var signcodeKey = Request.Headers["signcode"];
-                if (Startup.APISigncodesDict.ContainsKey(signcodeKey))
-                {
-                    var signcode = Startup.APISigncodesDict[signcodeKey];
-                    return SignatureUtil.TestStringParametersSignature(signature, signcode, platform.ToString(), deviceId, uniqueId, ts.ToString());
-                }
+                return BahamutCommon.Utils.SignatureUtil.TestStringParametersSignature(signature, platform.ToString(), deviceId, uniqueId, aesKey, ts.ToString());
             }
-            return false;
         }
 
-        [HttpPost("{platform}/{deviceId}/{uniqueId}/{ts}")]
-        public object GetAppList(int platform, string deviceId, string uniqueId, long ts, string channel = "", string bundleId = "", string urlSchemes = "")
+        private static string AESEncryptPayload(object payloadModel, string secret)
         {
-            if (string.IsNullOrEmpty(deviceId) || string.IsNullOrEmpty(uniqueId))
+            var modelJson = Newtonsoft.Json.JsonConvert.SerializeObject(payloadModel);
+            var payload = BahamutCommon.Encryption.AESHelper.AESEncrypt(modelJson, secret);
+            return payload;
+        }
+
+        private static T RSADecryptPayload<T>(string payload, string rsaPriKey)
+        {
+            using (var rsap = new RSACryptoServiceProvider())
             {
-                Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
-                return new ApiResult
+                var cspBlob = Convert.FromBase64String(rsaPriKey);
+                rsap.ImportCspBlob(cspBlob);
+
+                var payloadB64Bytes = Convert.FromBase64String(payload);
+                var modelJsonBytes = rsap.DecryptValue(payloadB64Bytes);
+                var modelJson = System.Text.Encoding.UTF8.GetString(modelJsonBytes);
+                var payloadModel = Newtonsoft.Json.JsonConvert.DeserializeObject<T>(modelJson);
+                return payloadModel;
+            }
+        }
+
+        [HttpPost("{payload}")]
+        public object GetAppList(string payload)
+        {
+            using (var rsap = new RSACryptoServiceProvider())
+            {
+                var model = RSADecryptPayload<AppListRequestModel>(payload, Startup.APIRequestPayloadRSAPrivateKey);
+
+                if (string.IsNullOrEmpty(model.deviceId) || string.IsNullOrEmpty(model.uniqueId) || model.ts == 0)
                 {
-                    code = Response.StatusCode,
-                    msg = "Invalid Parameters"
-                };
-            }
-
-            if (!IsValidSignature(platform, deviceId, uniqueId, ts))
-            {
-                Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
-                return new ApiResult
-                {
-                    code = Response.StatusCode,
-                    msg = "Invalid Signature"
-                };
-            }
-
-            if (string.IsNullOrEmpty(channel))
-            {
-                channel = BTAppLaunchRecord.CHANNEL_UNKNOW;
-            }
-
-            var a = from u in DBContext.BTAppLaunchRecord where u.DeviceId == deviceId && u.Platform == platform && u.UniqueId == uniqueId select u;
-            if (a.Any())
-            {
-                var record = a.First();
-                record.Channel = channel;
-                record.BundleId = bundleId;
-                record.UrlSchemes = urlSchemes;
-                record.LaunchDateTs = DateTimeUtil.UnixTimeSpanSec;
-                DBContext.BTAppLaunchRecord.Update(record);
-            }
-            else
-            {
-                DBContext.BTAppLaunchRecord.Add(new BTAppLaunchRecord
-                {
-                    DeviceId = deviceId,
-                    Platform = platform,
-                    UniqueId = uniqueId,
-                    Channel = channel,
-                    BundleId = bundleId,
-                    UrlSchemes = urlSchemes,
-                    LaunchDateTs = DateTimeUtil.UnixTimeSpanSec
-                });
-            }
-            DBContext.SaveChanges();
-
-            var dateTimeLimited = DateTimeUtil.UnixTimeSpanOfDateTime(DateTime.Now.AddDays(-30)).TotalSeconds;
-
-            var resList = from u in DBContext.BTAppLaunchRecord
-                          where u.DeviceId == deviceId && u.Platform == platform && u.LaunchDateTs > dateTimeLimited
-                          select new
-                          {
-                              UniqueId = u.UniqueId,
-                              Channel = u.Channel,
-                              BundleId = u.BundleId,
-                              UrlSchemes = u.UrlSchemes,
-                              LaunchDateTs = u.LaunchDateTs
-                          };
-            return new ApiResult
-            {
-                code = 200,
-                msg = "Success",
-                content = new
-                {
-                    DeviceId = deviceId,
-                    Platform = platform,
-                    AppList = resList
+                    Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
+                    return new ApiResult
+                    {
+                        code = Response.StatusCode,
+                        msg = "Invalid Parameters"
+                    };
                 }
-            };
+
+                if (!model.TestSignature())
+                {
+                    Response.StatusCode = (int)System.Net.HttpStatusCode.Forbidden;
+                    return new ApiResult
+                    {
+                        code = Response.StatusCode,
+                        msg = "Invalid Signature"
+                    };
+                }
+
+                if (string.IsNullOrEmpty(model.channel))
+                {
+                    model.channel = BTAppLaunchRecord.CHANNEL_UNKNOW;
+                }
+
+                var a = from u in DBContext.BTAppLaunchRecord where u.DeviceId == model.deviceId && u.Platform == model.platform && u.UniqueId == model.uniqueId select u;
+                if (a.Any())
+                {
+                    var record = a.First();
+                    record.Channel = model.channel;
+                    record.BundleId = model.bundleId;
+                    record.UrlSchemes = model.urlSchemes;
+                    record.LaunchDateTs = DateTimeUtil.UnixTimeSpanSec;
+                    DBContext.BTAppLaunchRecord.Update(record);
+                }
+                else
+                {
+                    DBContext.BTAppLaunchRecord.Add(new BTAppLaunchRecord
+                    {
+                        DeviceId = model.deviceId,
+                        Platform = model.platform,
+                        UniqueId = model.uniqueId,
+                        Channel = model.channel,
+                        BundleId = model.bundleId,
+                        UrlSchemes = model.urlSchemes,
+                        LaunchDateTs = DateTimeUtil.UnixTimeSpanSec
+                    });
+                }
+                DBContext.SaveChanges();
+
+                var dateTimeLimited = DateTimeUtil.UnixTimeSpanOfDateTime(DateTime.Now.AddDays(-30)).TotalSeconds;
+
+                var resList = from u in DBContext.BTAppLaunchRecord
+                              where u.DeviceId == model.deviceId && u.Platform == model.platform && u.LaunchDateTs > dateTimeLimited
+                              select new
+                              {
+                                  UniqueId = u.UniqueId,
+                                  Channel = u.Channel,
+                                  BundleId = u.BundleId,
+                                  UrlSchemes = u.UrlSchemes,
+                                  LaunchDateTs = u.LaunchDateTs
+                              };
+                return new ApiResult
+                {
+                    code = 200,
+                    msg = "Success",
+                    content = AESEncryptPayload(new
+                    {
+                        DeviceId = model.deviceId,
+                        Platform = model.platform,
+                        AppList = resList
+                    }, model.aesKey)
+                };
+            }
         }
     }
 }

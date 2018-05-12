@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging.Console;
+using BahamutCommon.Encryption;
 
 namespace AppListWebAPI
 {
@@ -30,7 +31,7 @@ namespace AppListWebAPI
             {
                 ac.AddConsole();
             });
-            
+
             services.AddMvc().AddJsonOptions(op =>
             {
                 op.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
@@ -52,7 +53,6 @@ namespace AppListWebAPI
             }
 
             app.UseMvc();
-            LoadAPISignCodes();
             ConnectDB(app);
         }
 
@@ -73,16 +73,6 @@ namespace AppListWebAPI
             }
         }
 
-        public static Dictionary<string, string> APISigncodesDict { get; private set; }
-        private void LoadAPISignCodes()
-        {
-            APISigncodesDict = new Dictionary<string, string>();
-            var signcodes = Environment.GetEnvironmentVariable("API_SIGNCODES");
-            foreach (var item in signcodes.Split(';'))
-            {
-                var signkv = item.Split(':');
-                APISigncodesDict[signkv[0]] = signkv[1];
-            }
-        }
+        public static string APIRequestPayloadRSAPrivateKey { get { return Environment.GetEnvironmentVariable("APIRequestPayloadRSAPrivateKey"); } }
     }
 }
