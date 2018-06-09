@@ -51,7 +51,7 @@ namespace AppListWebAPI
             {
                 app.UseDeveloperExceptionPage();
             }
-
+            app.UseStaticFiles();
             app.UseMvc();
             ConnectDB(app);
         }
