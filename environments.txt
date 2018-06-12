@@ -1,0 +1,3 @@
+ASPNETCORE_ENVIRONMENT="Production"
+MYSQL_CONSTR="server=localhost;database=xx;user=xx;password=xx;SslMode=none"
+APIRequestPayloadRSAPrivateKey="xxxxx"
